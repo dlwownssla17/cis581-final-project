@@ -97,8 +97,9 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
                 [morphPts1, morphPts2] = addCtrlPoint(face1.position.nose, face2.position.nose, morphPts1, morphPts2, w1, h1, w2, h2, topLeft1, topLeft2);
 
                 % Morph face images
-                morph = morph_tps_wrapper(faceImg1, faceImg2, morphPts1, morphPts2, .5, .5);
+                morph = morph_tps_wrapper(faceImg1, faceImg2, morphPts1, morphPts2, 1, 0);
                 
+                %{
                 % If face can't be detected from .5 morph, try .4/.6 to see
                 % if that works
                 imwrite(morph{1}, 'morph.jpg');
@@ -117,6 +118,10 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
                         end
                     end
                 end
+                %}
+                
+                %{
+                OLD LOGIC, PLEASE DON'T DELETE!
 
                 % Get all landmarks so that convex hull can be computed
                 landmark_names = fieldnames(facePts);
@@ -143,9 +148,53 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
                     end
                 end                
                 resultImg = seamlessCloningPoisson(morph{1}, target, mask, topLeft2(1), topLeft2(2));
-                if mainCt == 1
-                    figure; imshow(resultImg);
+                %}
+                
+                landmark_names = fieldnames(facePts2);
+                allFacePts = [];
+                ct = 1;
+                for j = 1 : length(landmark_names)
+                    if (~isempty(findstr(landmark_names{j}, 'contour')))
+                        
+                        continue;
+                    end
+                    pts1 = getfield(facePts2, landmark_names{j});
+                    allFacePts(ct,1) = pts1.x * w2 / 100;
+                    allFacePts(ct,2) = pts1.y * h2 / 100;
+                    ct = ct + 1;
                 end
+                
+                % Extract all points in the morphed image within the convex
+                % hull of the face and blend that to the target image.
+                x = allFacePts(:,1);
+                y = allFacePts(:,2);
+                figure; imshow(target); hold on;
+                plot(x,y,'*');
+                
+                K = convhull(allFacePts(:,1),allFacePts(:,2));
+                mask = zeros(size(morph{1},1), size(morph{1},2));
+                for j=1:size(target,1)
+                    for k=1:size(target,2)
+                        if inpolygon(j, k, x(K), y(K))
+                            %{
+                            disp('VIVEK');
+                            disp(j);
+                            disp(k);
+                            disp(j-topLeft2(2)+1); 
+                            disp(k-topLeft2(1)+1);
+                            disp(topLeft2);
+                            disp(size(target));
+                            %}
+                            mask(k-topLeft2(2)+1,j-topLeft2(1)+1) = 1;
+                        end
+                    end
+                end                
+                resultImg = seamlessCloningPoisson(morph{1}, target, mask, topLeft2(1), topLeft2(2));
+
+    
+                %if mainCt == 1
+                    figure; imshow(resultImg);
+               % end
                 % Write new frame to video
                 writeVideo(writer, resultImg);
                 disp('COMPLETE');
