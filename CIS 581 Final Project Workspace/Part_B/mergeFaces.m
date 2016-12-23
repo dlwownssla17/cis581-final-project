@@ -168,24 +168,22 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
                 % hull of the face and blend that to the target image.
                 x = allFacePts(:,1);
                 y = allFacePts(:,2);
-                figure; imshow(target); hold on;
-                plot(x,y,'*');
                 
                 K = convhull(allFacePts(:,1),allFacePts(:,2));
+                disp(K);
                 mask = zeros(size(morph{1},1), size(morph{1},2));
                 for j=1:size(target,1)
                     for k=1:size(target,2)
-                        if inpolygon(j, k, x(K), y(K))
+                        if inpolygon(k, j, x(K), y(K))
                             %{
                             disp('VIVEK');
-                            disp(j);
                             disp(k);
-                            disp(j-topLeft2(2)+1); 
-                            disp(k-topLeft2(1)+1);
+                            disp(j);
                             disp(topLeft2);
+                            disp([k-topLeft2(2)+1 j-topLeft2(1)+1]);
                             disp(size(target));
                             %}
-                            mask(k-topLeft2(2)+1,j-topLeft2(1)+1) = 1;
+                            mask(k-topLeft2(1)+1,j-topLeft2(2)+1) = 1;
                         end
                     end
                 end                
