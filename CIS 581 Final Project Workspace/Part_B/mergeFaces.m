@@ -23,6 +23,13 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
         open(writers{i});
     end
     
+    % preprocess videos
+    for i=1:length(videoFiles)
+        keys = [];
+        values = [];
+        
+    end
+    
     mainCt = 1;
     
     scaleFactor = .5;
@@ -50,8 +57,13 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
                 if (mainCt ~= 1)
                     useReplacementFace = true;
                     replacementFace = selectedFaces{i};
+                end                
+                [ rst2, w2, h2, facePts2, face2, success ] = callFaceApi('test.jpg', useReplacementFace, replacementFace);
+                if ~success
+                    disp(strcat('Failure: mainCt=', int2str(mainCt), ', i=', int2str(i)));
+                    continue;
                 end
-                [ rst2, w2, h2, facePts2, face2 ] = callFaceApi('test.jpg', useReplacementFace, replacementFace);
+                disp(face2.position);
                 if (mainCt == 1)
                     selectedFaces{i} = face2;
                 end
@@ -197,6 +209,7 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
                 writeVideo(writer, resultImg);
                 disp('COMPLETE');
             catch NE
+                disp(strcat('Failure: mainCt=', int2str(mainCt), ', i=', int2str(i)));
                 rethrow(NE);
                 continue;
             end
