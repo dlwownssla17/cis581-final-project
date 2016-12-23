@@ -22,10 +22,10 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
         open(writers{i});
     end
     
-    ct = 1;
+    mainCt = 1;
     
     scaleFactor = .5;
-    while ct <= 100    
+    while mainCt <= 100    
         % Run on all test videos in parallel
         for i=1:length(videoFiles)
             try
@@ -147,7 +147,7 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
                 continue;
             end
         end
-        ct = ct + 1;
+        mainCt = mainCt + 1;
     end
 end
 
