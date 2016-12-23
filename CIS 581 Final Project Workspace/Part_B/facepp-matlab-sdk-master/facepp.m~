@@ -60,10 +60,7 @@ classdef facepp
         end
         
         function results = compare(api, face_id1, face_id2)
-            str = urlreadpost(strcat(api.site, '/recognition/compare'), ...
-                { 'api_key', api.key, 'api_secret', api.secret, 'face_id1', face_id1, ...
-                'face_id2', face_id2 });
-            results = parse_json(str);
+            
         end
     end
 end

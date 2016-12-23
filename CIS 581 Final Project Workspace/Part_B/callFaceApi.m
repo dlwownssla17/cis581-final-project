@@ -1,4 +1,4 @@
-function [ rst, img_width, img_height, landmark_points, bestFace, success ] = callFaceApi( img )
+function [ rst, img_width, img_height, landmark_points, bestFace, success ] = callFaceApi( img, useReplacementFace, replacementFace )
     addpath('facepp-matlab-sdk-master');
 %GETLANDMARKPTS Summary of this function goes here
 %   Detailed explanation goes here
@@ -38,15 +38,25 @@ function [ rst, img_width, img_height, landmark_points, bestFace, success ] = ca
     end
         
     faceIndex = 1;
-    maxArea = 0;
-    for i=1:length(face)
-        face_i = face{i};
-        w = face_i.position.width / 100 * img_width;
-        h = face_i.position.height / 100 * img_height;
-        if w * h > maxArea
-            maxArea = w*h;
-            faceIndex = i;
-        end            
+    
+    if (useReplacementFace)
+        maxScore = 0;
+        for i=1:length(face)
+            score = compare(api, face{i}.face_id, replacementFace.face_id);
+            if score{1}.similarity > maxScore
+                maxScore = score{1}.similarity;
+                faceIndex = i;
+            end
+        end
+    else
+        maxArea = 0;
+        for i=1:length(face)
+            area = face{i}.position.width * face{i}.position.height;
+            if area > maxArea 
+                maxArea = area;
+                faceIndex = i;
+            end
+        end
     end
 
     bestFace = face{faceIndex};

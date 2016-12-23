@@ -9,6 +9,7 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
 %   Detailed explanation goes here
     readers = cell(length(videoFiles),1);
     writers = cell(length(videoFiles),1);
+    selectedFaces = cell(length(videoFiles),1);
     ct = 1;
     for i=1:length(videoFiles)
         video = char(videoFiles(i));
@@ -43,8 +44,17 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
                 target = uint8(imresize(uint8(readFrame(reader)), scaleFactor));
                 imwrite(target, 'test.jpg');
 
-                [ rst1, w1, h1, facePts1, face1 ] = callFaceApi('replacement.jpg');
-                [ rst2, w2, h2, facePts2, face2 ] = callFaceApi('test.jpg');
+                [ rst1, w1, h1, facePts1, face1 ] = callFaceApi('replacement.jpg', false, []);
+                useReplacementFace = false;
+                replacementFace = [];
+                if (mainCt ~= 1)
+                    useReplacementFace = true;
+                    replacementFace = selectedFaces{i};
+                end
+                [ rst2, w2, h2, facePts2, face2 ] = callFaceApi('test.jpg', useReplacementFace, replacementFace);
+                if (mainCt == 1)
+                    selectedFaces{i} = face2;
+                end
                 
                 % Find top left corner of both faces
                 topLeft1 = [(face1.position.center.x - (face1.position.width/2)) (face1.position.center.y - (face1.position.height/2))];
@@ -92,17 +102,17 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
                 % If face can't be detected from .5 morph, try .4/.6 to see
                 % if that works
                 imwrite(morph{1}, 'morph.jpg');
-                [ rst, w, h, facePts, morphFace, success ] = callFaceApi('morph.jpg');
+                [ rst, w, h, facePts, morphFace, success ] = callFaceApi('morph.jpg', false, []);
                 if (~success)
                     morph = morph_tps_wrapper(faceImg1, faceImg2, morphPts1, morphPts2, .4,.4);
                     imwrite(morph{1}, 'morph.jpg');
-                    [ rst, w, h, facePts, morphFace, success ] = callFaceApi('morph.jpg');
+                    [ rst, w, h, facePts, morphFace, success ] = callFaceApi('morph.jpg', false, []);
                     if (~success)
                         morph = morph_tps_wrapper(faceImg1, faceImg2, morphPts1, morphPts2, .6,.6);
                         imwrite(morph{1}, 'morph.jpg');
-                        [ rst, w, h, facePts, morphFace, success ] = callFaceApi('morph.jpg');
+                        [ rst, w, h, facePts, morphFace, success ] = callFaceApi('morph.jpg', false, []);
                         if (~success)
-                            disp(mainCt);
+                            disp(strcat('Failure on: mainCt =', int2str(mainCt), ', i = ', int2str(i)));
                             continue;
                         end
                     end
@@ -133,7 +143,9 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
                     end
                 end                
                 resultImg = seamlessCloningPoisson(morph{1}, target, mask, topLeft2(1), topLeft2(2));
-                figure; imshow(resultImg);
+                if mainCt == 1
+                    figure; imshow(resultImg);
+                end
                 % Write new frame to video
                 writeVideo(writer, resultImg);
                 disp('COMPLETE');
