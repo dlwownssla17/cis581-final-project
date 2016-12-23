@@ -2,11 +2,8 @@ function [ rst, img_width, img_height, landmark_points, bestFace, success ] = ca
     addpath('facepp-matlab-sdk-master');
 %GETLANDMARKPTS Summary of this function goes here
 %   Detailed explanation goes here
-    
-    fileID = fopen('keys.txt','r');
-    API_KEY = fgetl(fileID);
-    API_SECRET = fgetl(fileID);
-    fclose(fileID);
+    API_KEY = 'cc2af0a2e03a5634d1130cf9d0a00b38';
+    API_SECRET = 'IZQyh0-G78icHqvk6JQEs3tgN00deevj';
     
      % If you have chosen Amazon as your API sever and 
     % changed API_KEY&API_SECRET into yours, 
@@ -21,19 +18,12 @@ function [ rst, img_width, img_height, landmark_points, bestFace, success ] = ca
     img_height = rst{1}.img_height;
     face = rst{1}.face;
     fprintf('Totally %d faces detected!\n', length(face));
-    
-    %{
+
     im = imread(img);
-    figure; imshow(im);
+    imshow(im);
     hold on;
-    %}
-    if isempty(face)
+    if length(face == 0)
         success = false;
-        rst = []; 
-        img_width = 0; 
-        img_height = 0; 
-        landmark_points = [];
-        bestFace = [];
         return;
     end
         
@@ -56,15 +46,15 @@ function [ rst, img_width, img_height, landmark_points, bestFace, success ] = ca
     center = face_i.position.center;
     w = face_i.position.width / 100 * img_width;
     h = face_i.position.height / 100 * img_height;
-    
     %{
     rectangle('Position', ...
         [center.x * img_width / 100 -  w/2, center.y * img_height / 100 - h/2, w, h], ...
         'Curvature', 0.4, 'LineWidth',2, 'EdgeColor', 'blue');
     %}
+
     % Detect facial key points
     rst2 = api.landmark(face_i.face_id, '83p');
     landmark_points = rst2{1}.result{1}.landmark;
-    success = true;
+    su
 end
 

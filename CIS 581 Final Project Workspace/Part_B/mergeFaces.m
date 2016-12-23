@@ -7,13 +7,18 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
     addpath('Proj4_Test/hard');
 %MERGEFACES Summary of this function goes here
 %   Detailed explanation goes here
-    readers = cell(size(videoFiles));
-    writers = cell(size(videoFiles));
+    readers = cell(length(videoFiles),1);
+    writers = cell(length(videoFiles),1);
+    ct = 1;
     for i=1:length(videoFiles)
         video = char(videoFiles(i));
         readers{i} = VideoReader(video);
-        disp(strcat(video(1:end-4),'_morphed1.avi'));
-        writers{i} = VideoWriter(strcat(video(1:end-4),'_morphed1.avi'),'Uncompressed AVI');
+        if i == 1
+            while exist(strcat(video(1:end-4),'_morphed', int2str(ct), '.avi'), 'file') == 2
+                ct = ct + 1;
+            end
+        end
+        writers{i} = VideoWriter(strcat(video(1:end-4),'_morphed', int2str(ct), '.avi'),'Uncompressed AVI');
         open(writers{i});
     end
     
@@ -82,10 +87,27 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
                 [morphPts1, morphPts2] = addCtrlPoint(face1.position.nose, face2.position.nose, morphPts1, morphPts2, w1, h1, w2, h2, topLeft1, topLeft2);
 
                 % Morph face images
-                morph = morph_tps_wrapper(faceImg1, faceImg2, morphPts1, morphPts2, .5, .5);
-
+                morph = morph_tps_wrapper(faceImg1, faceImg2, morphPts1, morphPts2, .5,.5);
+                
+                % If face can't be detected from .5 morph, try .4/.6 to see
+                % if that works
                 imwrite(morph{1}, 'morph.jpg');
-                [ rst, w, h, facePts, morphFace ] = callFaceApi('morph.jpg');
+                [ rst, w, h, facePts, morphFace, success ] = callFaceApi('morph.jpg');
+                if (~success)
+                    morph = morph_tps_wrapper(faceImg1, faceImg2, morphPts1, morphPts2, .4,.4);
+                    imwrite(morph{1}, 'morph.jpg');
+                    [ rst, w, h, facePts, morphFace, success ] = callFaceApi('morph.jpg');
+                    if (~success)
+                        morph = morph_tps_wrapper(faceImg1, faceImg2, morphPts1, morphPts2, .6,.6);
+                        imwrite(morph{1}, 'morph.jpg');
+                        [ rst, w, h, facePts, morphFace, success ] = callFaceApi('morph.jpg');
+                        if (~success)
+                            figure; imshow(morph{1});
+                            disp(ct);
+                            continue;
+                        end
+                    end
+                end
 
                 % Get all landmarks so that convex hull can be computed
                 landmark_names = fieldnames(facePts);
@@ -116,10 +138,12 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
                     end
                 end
                 resultImg = seamlessCloningPoisson(img, target, mask, 0, 0);
+                figure; imshow(resultImg);
                 
                 % Write new frame to video
                 writeVideo(writer, resultImg);
-            catch
+            catch NE
+                rethrow(NE);
                 continue;
             end
         end
