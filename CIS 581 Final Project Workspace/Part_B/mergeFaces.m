@@ -1,4 +1,4 @@
-function [ output_args ] = mergeFaces( videoFiles )
+function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
     addpath('facepp-matlab-sdk-master');
     addpath('proj2');
     addpath('proj4a_blending');
@@ -21,17 +21,18 @@ function [ output_args ] = mergeFaces( videoFiles )
     
     scaleFactor = .5;
     while ct <= 100    
+        % Run on all test videos in parallel
         for i=1:length(videoFiles)
             try
                 reader = readers{i};
                 writer = writers{i};
+                
                 if ~hasFrame(reader)
                     close(writer);
                     continue;
                 end
-                replacementFileName = 'trump.jpg';        
+                
                 replacement = uint8(imresize(uint8(imread(replacementFileName)), .5));
-
                 imwrite(replacement, 'replacement.jpg');
 
                 target = uint8(imresize(uint8(readFrame(reader)), scaleFactor));
@@ -39,7 +40,8 @@ function [ output_args ] = mergeFaces( videoFiles )
 
                 [ rst1, w1, h1, facePts1, face1 ] = callFaceApi('replacement.jpg');
                 [ rst2, w2, h2, facePts2, face2 ] = callFaceApi('test.jpg');
-
+                
+                % Find top left corner of both faces
                 topLeft1 = [(face1.position.center.x - (face1.position.width/2)) (face1.position.center.y - (face1.position.height/2))];
                 topLeft2 = [(face2.position.center.x - (face2.position.width/2)) (face2.position.center.y - (face2.position.height/2))];
                 topLeft1(1) = topLeft1(1) * w1 / 100;
@@ -49,7 +51,8 @@ function [ output_args ] = mergeFaces( videoFiles )
                 topLeft1 = round(topLeft1);
                 topLeft2 = round(topLeft2);
 
-
+                % Extract images of just the faces from both images. This
+                % will make blending look better.
                 faceImg1 = toFaceImg(replacement, topLeft1,  ceil(face1.position.width * w1 / 100),  ceil(face1.position.height * h1 / 100));
                 faceImg2 = toFaceImg(target, topLeft2,  floor(face2.position.width * w2 / 100),  floor(face2.position.height * h2 / 100));
 
@@ -78,13 +81,13 @@ function [ output_args ] = mergeFaces( videoFiles )
                 % nose
                 [morphPts1, morphPts2] = addCtrlPoint(face1.position.nose, face2.position.nose, morphPts1, morphPts2, w1, h1, w2, h2, topLeft1, topLeft2);
 
-
-                w=0:0.1:1;
+                % Morph face images
                 morph = morph_tps_wrapper(faceImg1, faceImg2, morphPts1, morphPts2, .5, .5);
 
                 imwrite(morph{1}, 'morph.jpg');
                 [ rst, w, h, facePts, morphFace ] = callFaceApi('morph.jpg');
 
+                % Get all landmarks so that convex hull can be computed
                 landmark_names = fieldnames(facePts);
                 allFacePts = zeros(length(landmark_names), 2);
                 ct = 1;
@@ -94,7 +97,9 @@ function [ output_args ] = mergeFaces( videoFiles )
                     allFacePts(ct,2) = pts1.y * h / 100;
                     ct = ct + 1;
                 end
-
+                
+                % Extract all points in the morphed image within the convex
+                % hull of the face and blend that to the target image.
                 x = allFacePts(:,1) + topLeft2(2) - 1;
                 y = allFacePts(:,2) + topLeft2(1) - 1;
                 K = convhull(allFacePts(:,1),allFacePts(:,2));
@@ -111,6 +116,8 @@ function [ output_args ] = mergeFaces( videoFiles )
                     end
                 end
                 resultImg = seamlessCloningPoisson(img, target, mask, 0, 0);
+                
+                % Write new frame to video
                 writeVideo(writer, resultImg);
             catch
                 continue;
