@@ -87,7 +87,7 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
                 [morphPts1, morphPts2] = addCtrlPoint(face1.position.nose, face2.position.nose, morphPts1, morphPts2, w1, h1, w2, h2, topLeft1, topLeft2);
 
                 % Morph face images
-                morph = morph_tps_wrapper(faceImg1, faceImg2, morphPts1, morphPts2, .5,.5);
+                morph = morph_tps_wrapper(faceImg1, faceImg2, morphPts1, morphPts2, .5, .5);
                 
                 % If face can't be detected from .5 morph, try .4/.6 to see
                 % if that works
@@ -102,8 +102,7 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
                         imwrite(morph{1}, 'morph.jpg');
                         [ rst, w, h, facePts, morphFace, success ] = callFaceApi('morph.jpg');
                         if (~success)
-                            figure; imshow(morph{1});
-                            disp(ct);
+                            disp(mainCt);
                             continue;
                         end
                     end
@@ -122,26 +121,22 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
                 
                 % Extract all points in the morphed image within the convex
                 % hull of the face and blend that to the target image.
-                x = allFacePts(:,1) + topLeft2(2) - 1;
-                y = allFacePts(:,2) + topLeft2(1) - 1;
+                x = allFacePts(:,1);
+                y = allFacePts(:,2);
                 K = convhull(allFacePts(:,1),allFacePts(:,2));
-                img = target;
-                mask = zeros(size(img,1), size(img,2));
+                mask = zeros(size(morph{1},1), size(morph{1},2));
                 for j=1:size(morph{1},1)
                     for k=1:size(morph{1},2)
-                        if inpolygon(k+topLeft2(2)-1, j+topLeft2(1)-1, x(K), y(K))
-                            for l=1:3
-                                img(k+topLeft2(2)-1, j+topLeft2(1)-1, l) = morph{1}(k,j,l);
-                            end
+                        if inpolygon(j, k, x(K), y(K))
+                            mask(j,k) = 1;
                         end
-                        mask(k+topLeft2(2)-1, j+topLeft2(1)-1) = 1;
                     end
-                end
-                resultImg = seamlessCloningPoisson(img, target, mask, 0, 0);
+                end                
+                resultImg = seamlessCloningPoisson(morph{1}, target, mask, topLeft2(1), topLeft2(2));
                 figure; imshow(resultImg);
-                
                 % Write new frame to video
                 writeVideo(writer, resultImg);
+                disp('COMPLETE');
             catch NE
                 rethrow(NE);
                 continue;
