@@ -1,0 +1,1 @@
+animation_morph_from_jj_to_lion(0);
