@@ -10,6 +10,8 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
     readers = cell(length(videoFiles),1);
     writers = cell(length(videoFiles),1);
     selectedFaces = cell(length(videoFiles),1);
+    previousAllFaces = cell(length(videoFiles),1);
+    previousFaceIndex = cell(length(videoFiles),1);
     ct = 1;
     for i=1:length(videoFiles)
         video = char(videoFiles(i));
@@ -44,16 +46,21 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
                 target = uint8(imresize(uint8(readFrame(reader)), scaleFactor));
                 imwrite(target, 'test.jpg');
 
-                [ rst1, w1, h1, facePts1, face1 ] = callFaceApi('replacement.jpg', false, []);
+                [ rst1, w1, h1, facePts1, face1 ] = callFaceApi('replacement.jpg', false, [], []);
                 useReplacementFace = false;
                 replacementFace = [];
+                prevFaces = [];
+                prevIndex = 0;
                 if (mainCt ~= 1)
                     useReplacementFace = true;
                     replacementFace = selectedFaces{i};
+                    prevFaces = previousAllFaces{i};
+                    prevIndex = previousFaceIndex{i};
                 end
-                [ rst2, w2, h2, facePts2, face2 ] = callFaceApi('test.jpg', useReplacementFace, replacementFace);
-                if (mainCt == 1)
-                    selectedFaces{i} = face2;
+                [ rst2, w2, h2, facePts2, face2, success2, allFaces2, faceIndex2 ] = callFaceApi('test.jpg', useReplacementFace, replacementFace, prevFaces, prevIndex);
+                if ~success2
+                    disp(strcat('Error in mainCt = ', int2str(mainCt), ', i = ', int2str(i)));
+                    continue;
                 end
                 
                 % Find top left corner of both faces
@@ -143,13 +150,17 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
                     end
                 end                
                 resultImg = seamlessCloningPoisson(morph{1}, target, mask, topLeft2(1), topLeft2(2));
-                if mainCt == 1
+                %if mainCt == 1
                     figure; imshow(resultImg);
-                end
+                %end
                 % Write new frame to video
                 writeVideo(writer, resultImg);
                 disp('COMPLETE');
+                selectedFaces{i} = face2;
+                previousAllFaces{i} = allFaces2;
+                previousFaceIndex{i} = faceIndex2;
             catch NE
+                disp(strcat('Error in mainCt = ', int2str(mainCt), ', i = ', int2str(i)));
                 rethrow(NE);
                 continue;
             end
@@ -167,13 +178,10 @@ function [pts1, pts2] = addCtrlPoint(pt1, pt2, pts1, pts2, w1, h1, w2, h2, topLe
 end
 
 function [newImg] = toFaceImg(img, topLeft, w, h)
-    % img = uint8(img);
     newImg = zeros(w,h,3);
     for i=1:w
         for j=1:h
             for k=1:3
-                %disp(strcat(num2str(i), ',', num2str(j), ',', num2str(i + topLeft(1) - 1), ',', num2str(j + topLeft(2) - 1), ','));
-                %disp(size(img));
                 newImg(j,i,k) = img(j + topLeft(2) - 1, i + topLeft(1) - 1, k);
             end
         end

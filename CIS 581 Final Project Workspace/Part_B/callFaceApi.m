@@ -1,4 +1,4 @@
-function [ rst, img_width, img_height, landmark_points, bestFace, success ] = callFaceApi( img, useReplacementFace, replacementFace )
+function [ rst, img_width, img_height, landmark_points, bestFace, success, allFaces, faceIndex ] = callFaceApi( img, useReplacementFace, replacementFace, prevFaces, prevFaceIndex )
     addpath('facepp-matlab-sdk-master');
 %GETLANDMARKPTS Summary of this function goes here
 %   Detailed explanation goes here
@@ -20,6 +20,7 @@ function [ rst, img_width, img_height, landmark_points, bestFace, success ] = ca
     img_width = rst{1}.img_width;
     img_height = rst{1}.img_height;
     face = rst{1}.face;
+    allFaces = face;
     fprintf('Totally %d faces detected!\n', length(face));
     
     %{
@@ -28,24 +29,87 @@ function [ rst, img_width, img_height, landmark_points, bestFace, success ] = ca
     hold on;
     %}
     if isempty(face)
+        disp('COMES HERE!');
         success = false;
         rst = []; 
         img_width = 0; 
         img_height = 0; 
         landmark_points = [];
         bestFace = [];
+        success = 0; 
+        allFaces = 0; 
+        faceIndex = 0;
         return;
     end
         
     faceIndex = 1;
     
     if (useReplacementFace)
-        maxScore = 0;
+        prevScores = zeros(length(prevFaces), 1);
+        for i=1:length(prevFaces)
+            if (prevFaces{i}.face_id == replacementFace.face_id)
+                prevScores(i) = 100;
+            else
+                tmp = compare(api, prevFaces{i}.face_id, replacementFace.face_id);
+                prevScores(i) = tmp{1}.similarity;
+            end
+        end
+        currScores = zeros(length(face), 1);
         for i=1:length(face)
-            score = compare(api, face{i}.face_id, replacementFace.face_id);
-            if score{1}.similarity > maxScore
-                maxScore = score{1}.similarity;
-                faceIndex = i;
+            tmp = compare(api, face{i}.face_id, replacementFace.face_id);
+            currScores(i) = tmp{1}.similarity;
+        end
+        
+        ct = 0;
+        checked1 = zeros(length(prevFaces),1);
+        checked2 = zeros(length(face),1);
+        while (ct < min(length(prevFaces), length(face)))
+            firstIndex1 = 1;
+            firstIndex2 = 1;
+            for i=1:length(prevFaces)
+                if checked1(i) == 0
+                    firstIndex1 = i; 
+                    break;
+                end
+            end
+            for i=1:length(face)
+                if checked2(i) == 0
+                    firstIndex2 = i; 
+                    break;
+                end
+            end
+            minDiff = abs(prevScores(firstIndex1) - currScores(firstIndex2));            
+            for i=1:length(prevFaces)
+                for j=1:length(face)
+                    if checked1(i) == 0 && checked2(j) == 0
+                        diff = abs(prevScores(i) - currScores(j));
+                        if diff < minDiff
+                            firstIndex1 = i;
+                            firstIndex2 = j;
+                            minDiff = diff;
+                        end
+                    end
+                end
+            end
+            checked1(firstIndex1) = firstIndex2;
+            checked2(firstIndex2) = firstIndex1;
+            if firstIndex1 == prevFaceIndex
+                break;
+            end
+            ct = ct + 1;
+        end
+        faceIndex = checked1(prevFaceIndex);
+        if faceIndex == 0
+            maxSimilarity = compare(api, face{1}.face_id, replacementFace.face_id);
+            maxScore = maxSimilarity{1}.similarity;
+            faceIndex = 1;
+            for i=2:length(face)
+                maxSimilarity = compare(api, face{i}.face_id, replacementFace.face_id);                
+                score = maxSimilarity{1}.similarity;
+                if score > maxScore
+                    faceIndex = i;
+                    maxScore = score;
+                end
             end
         end
     else
@@ -58,7 +122,7 @@ function [ rst, img_width, img_height, landmark_points, bestFace, success ] = ca
             end
         end
     end
-
+    
     bestFace = face{faceIndex};
 
     % Draw face rectangle on the image
