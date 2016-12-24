@@ -28,22 +28,17 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
     mainCt = 1;
     
     scaleFactor = .5;
-    videosCompleted = 0;
     completed = zeros(length(videoFiles),1);
-    while videosCompleted <= length(videoFiles)
+    videosCompleted = 0;
+    while (true)   
         % Run on all test videos in parallel
         for i=1:length(videoFiles)
             try
                 reader = readers{i};
                 writer = writers{i};
                 
-                if completed(i)
-                    continue;
-                end
-                
                 if ~hasFrame(reader)
-                    videosCompleted = videosCompleted + 1;
-                    completed(i) = true;
+                    videosCompleted = videosCompleted + completed(;
                     close(writer);
                     continue;
                 end

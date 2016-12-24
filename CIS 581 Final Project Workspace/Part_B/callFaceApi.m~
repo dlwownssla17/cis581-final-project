@@ -1,0 +1,142 @@
+function [ rst, img_width, img_height, landmark_points, bestFace, success, allFaces, faceIndex ] = callFaceApi( img, useReplacementFace, replacementFace, prevFaces, prevFaceIndex )
+    addpath('facepp-matlab-sdk-master');
+%GETLANDMARKPTS Summary of this function goes here
+%   Detailed explanation goes here
+    
+    fileID = fopen('keys.txt','r');
+    API_KEY = fgetl(fileID);
+    API_SECRET = fgetl(fileID);
+    fclose(fileID);
+    
+     % If you have chosen Amazon as your API sever and 
+    % changed API_KEY&API_SECRET into yours, 
+    % pls reform the FACEPP call as following :
+    % api = facepp(API_KEY, API_SECRET, 'US')
+    api = facepp(API_KEY, API_SECRET, 'US');
+
+    % Detect faces in the image, obtain related information (faces, img_id, img_height, 
+    % img_width, session_id, url, attributes)
+    rst = detect_file(api, img, 'all');
+    img_width = rst{1}.img_width;
+    img_height = rst{1}.img_height;
+    face = rst{1}.face;
+    allFaces = face;
+    fprintf('Totally %d faces detected!\n', length(face));
+    
+    %{
+    im = imread(img);
+    figure; imshow(im);
+    hold on;
+    %}
+    if isempty(face)
+        disp('COMES HERE!');
+        success = false;
+        rst = []; 
+        img_width = 0; 
+        img_height = 0; 
+        landmark_points = [];
+        bestFace = [];
+        return;
+    end
+        
+    faceIndex = 1;
+    
+    if (useReplacementFace)
+        prevScores = zeros(length(prevFaces), 1);
+        for i=1:length(prevFaces)
+            if (prevFaces{i}.face_id == replacementFace.face_id)
+                prevScores(i) = 100;
+            else
+                tmp = compare(api, prevFaces{i}.face_id, replacementFace.face_id);
+                prevScores(i) = tmp{1}.similarity;
+            end
+        end
+        currScores = zeros(length(face), 1);
+        for i=1:length(face)
+            tmp = compare(api, face{i}.face_id, replacementFace.face_id);
+            currScores(i) = tmp{1}.similarity;
+        end
+        
+        ct = 0;
+        checked1 = zeros(length(prevFaces),1);
+        checked2 = zeros(length(face),1);
+        while (ct < min(length(prevFaces), length(face)))
+            firstIndex1 = 1;
+            firstIndex2 = 1;
+            for i=1:length(prevFaces)
+                if checked1(i) == 0
+                    firstIndex1 = i; 
+                    break;
+                end
+            end
+            for i=1:length(face)
+                if checked2(i) == 0
+                    firstIndex2 = i; 
+                    break;
+                end
+            end
+            minDiff = abs(prevScores(firstIndex1) - currScores(firstIndex2));            
+            for i=1:length(prevFaces)
+                for j=1:length(face)
+                    if checked1(i) == 0 && checked2(j) == 0
+                        diff = abs(prevScores(i) - currScores(j));
+                        if diff < minDiff
+                            firstIndex1 = i;
+                            firstIndex2 = j;
+                            minDiff = diff;
+                        end
+                    end
+                end
+            end
+            checked1(firstIndex1) = firstIndex2;
+            checked2(firstIndex2) = firstIndex1;
+            if firstIndex1 == prevFaceIndex
+                break;
+            end
+            ct = ct + 1;
+        end
+        if faceIndex == 0
+            maxSimilarity = compare(api, face{1}.face_id, replacementFace.face_id);
+            maxScore = maxSimilarity{1}.similarity;
+            faceIndex = 1;
+            for i=2:length(face)
+                maxSimilarity = compare(api, face{i}.face_id, replacementFace.face_id);                
+                score = maxSimilarity{1}.similarity;
+                if score > maxScore
+                    faceIndex = i;
+                    maxScore = score;
+                end
+            end
+        else
+            faceIndex = checked1(prevFaceIndex);
+        end
+    else
+        maxArea = 0;
+        for i=1:length(face)
+            area = face{i}.position.width * face{i}.position.height;
+            if area > maxArea 
+                maxArea = area;
+                faceIndex = i;
+            end
+        end
+    end
+    
+    bestFace = face{faceIndex};
+
+    % Draw face rectangle on the image
+    face_i = face{faceIndex};
+    center = face_i.position.center;
+    w = face_i.position.width / 100 * img_width;
+    h = face_i.position.height / 100 * img_height;
+    
+    %{
+    rectangle('Position', ...
+        [center.x * img_width / 100 -  w/2, center.y * img_height / 100 - h/2, w, h], ...
+        'Curvature', 0.4, 'LineWidth',2, 'EdgeColor', 'blue');
+    %}
+    % Detect facial key points
+    rst2 = api.landmark(face_i.face_id, '83p');
+    landmark_points = rst2{1}.result{1}.landmark;
+    success = true;
+end
+
