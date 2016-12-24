@@ -78,31 +78,24 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
                 faceImg1 = toFaceImg(replacement, topLeft1,  ceil(face1.position.width * w1 / 100),  ceil(face1.position.height * h1 / 100));
                 faceImg2 = toFaceImg(target, topLeft2,  floor(face2.position.width * w2 / 100),  floor(face2.position.height * h2 / 100));
 
-                morphPts1 = [];
-                morphPts2 = [];
-
-                % center
-                [morphPts1, morphPts2] = addCtrlPoint(face1.position.center, face2.position.center, morphPts1, morphPts2, w1, h1, w2, h2, topLeft1, topLeft2);
-
-                % eye_left
-                [morphPts1, morphPts2] = addCtrlPoint(face1.position.eye_left, face2.position.eye_left, morphPts1, morphPts2, w1, h1, w2, h2, topLeft1, topLeft2);
-
-
-                % eye_right
-                [morphPts1, morphPts2] = addCtrlPoint(face1.position.eye_right, face2.position.eye_right, morphPts1, morphPts2, w1, h1, w2, h2, topLeft1, topLeft2);
-
-
-                % mouth_left
-                [morphPts1, morphPts2] = addCtrlPoint(face1.position.mouth_left, face2.position.mouth_left, morphPts1, morphPts2, w1, h1, w2, h2, topLeft1, topLeft2);
-
-
-                % mouth_right
-                [morphPts1, morphPts2] = addCtrlPoint(face1.position.mouth_right, face2.position.mouth_right, morphPts1, morphPts2, w1, h1, w2, h2, topLeft1, topLeft2);
-
-
-                % nose
-                [morphPts1, morphPts2] = addCtrlPoint(face1.position.nose, face2.position.nose, morphPts1, morphPts2, w1, h1, w2, h2, topLeft1, topLeft2);
-
+                fp1 = face1.position;
+                fp2 = face2.position;
+                morphPts1 = [fp1.center.x, fp1.center.y;
+                             fp1.eye_left.x, fp1.eye_left.y;
+                             fp1.eye_right.x, fp1.eye_right.y;
+                             fp1.mouth_left.x, fp1.mouth_left.y;
+                             fp1.mouth_right.x, fp1.mouth_right.y;
+                             fp1.nose.x, fp1.nose.y];
+                morphPts2 = [fp2.center.x, fp2.center.y;
+                             fp2.eye_left.x, fp2.eye_left.y;
+                             fp2.eye_right.x, fp2.eye_right.y;
+                             fp2.mouth_left.x, fp2.mouth_left.y;
+                             fp2.mouth_right.x, fp2.mouth_right.y;
+                             fp2.nose.x, fp2.nose.y];
+                morphPts1(:,1) = morphPts1(:,1) .* w1 / 100 - topLeft1(1) + 1;
+                morphPts1(:,2) = morphPts1(:,2) .* h1 / 100 - topLeft1(2) + 1;
+                morphPts2(:,1) = morphPts2(:,1) .* w2 / 100 - topLeft2(1) + 1;
+                morphPts2(:,2) = morphPts2(:,2) .* h2 / 100 - topLeft2(2) + 1;
                 % Morph face images
                 morph = morph_tps_wrapper(faceImg1, faceImg2, morphPts1, morphPts2, .5, .5);
                 
@@ -141,27 +134,22 @@ function [ output_args ] = mergeFaces( replacementFileName, videoFiles )
                 x = allFacePts(:,1);
                 y = allFacePts(:,2);
                 K = convhull(allFacePts(:,1),allFacePts(:,2));
-                mask = zeros(size(morph{1},1), size(morph{1},2));
-                for j=1:size(morph{1},1)
-                    for k=1:size(morph{1},2)
-                        if inpolygon(j, k, x(K), y(K))
-                            mask(j,k) = 1;
-                        end
-                    end
-                end                
+                [r, c, ~] = size(morph{1});
+                [Xq, Yq] = meshgrid(1:c, 1:r);
+                mask_inpolygon = inpolygon(Xq(:), Yq(:), x(K), y(K)) ~= 0;
+                mask = reshape(mask_inpolygon, [r, c])';           
                 resultImg = seamlessCloningPoisson(morph{1}, target, mask, topLeft2(1), topLeft2(2));
-                %if mainCt == 1
+                if mod(mainCt,10) == 0
                     figure; imshow(resultImg);
-                %end
+                end
                 % Write new frame to video
                 writeVideo(writer, resultImg);
                 disp('COMPLETE');
                 selectedFaces{i} = face2;
                 previousAllFaces{i} = allFaces2;
                 previousFaceIndex{i} = faceIndex2;
-            catch NE
+            catch
                 disp(strcat('Error in mainCt = ', int2str(mainCt), ', i = ', int2str(i)));
-                rethrow(NE);
                 continue;
             end
         end
@@ -178,14 +166,6 @@ function [pts1, pts2] = addCtrlPoint(pt1, pt2, pts1, pts2, w1, h1, w2, h2, topLe
 end
 
 function [newImg] = toFaceImg(img, topLeft, w, h)
-    newImg = zeros(w,h,3);
-    for i=1:w
-        for j=1:h
-            for k=1:3
-                newImg(j,i,k) = img(j + topLeft(2) - 1, i + topLeft(1) - 1, k);
-            end
-        end
-    end
-    newImg = uint8(newImg);
+    newImg = uint8(img(topLeft(2) - 1 + (1:h), topLeft(1) - 1 + (1:w), :));
 end
 
